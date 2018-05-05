@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import requests
+from requests import get, post
 import muckrock_utils as mr_utils
 import json
 
@@ -35,7 +35,7 @@ class Agency():
         self.stale = stale
         self.exempt = exempt
         self.types = types
-        self.requires_proxy = requires_proxy
+        self.requires_proxy = requires_proxy 
         self.jurisdiction = jurisdiction
         self.location = location
         self.website = website
@@ -76,9 +76,11 @@ class Communication():
     def download_files(self):
         for comm_file in self.files:
             url = comm_file['ffile']
-            resp = requests.get(url, stream=True)
-            yield self.download_file(url)
- 
+            filename = url.split('/')[-1]
+            resp = get(url, stream=True)
+
+            yield (resp.content, filename)
+
 class Request():
     def __init__(self, id, title, slug, status, embargo, 
                  permanent_embargo, user, username, jurisdiction, 
@@ -187,7 +189,7 @@ class Muckrock():
                 return cached_request
 
         return None
- 
+
     def user_requests(self, username):
         base_url = 'https://www.muckrock.com/api_v1/foia'
         url = "%s?user=%s" % (base_url, username)
@@ -206,3 +208,21 @@ class Muckrock():
                 self.requests.append(new_request)
        
         return requests_ret
+
+    def send_request(self, subject, body, juris_id, agency_id):
+        base_url = 'https://www.muckrock.com/api_v1/foia'
+
+        agency = self.agency_by_id(agency_id)
+        jurisdiction = self.juris_by_id(juris_id)
+
+        data = {'title': subject, 'document_request': body,
+                'jurisdiction': juris_id, 'agency': agency_id}
+
+        print("Submitting to: %s - %s" 
+                % (agency.name, jurisdiction.full_name))
+
+        json_data = json.dumps(data)
+        headers = mr_utils.get_headers()
+
+        resp = post(base_url, headers=headers, data=data)
+        return resp

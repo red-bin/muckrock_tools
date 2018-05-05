@@ -3,17 +3,13 @@
 import muckrock_sdk
 
 mr = muckrock_sdk.Muckrock()
-
-username = 'ChapFOIA'
-
-my_requests = mr.user_requests(username)
-
-
-def save_file
+my_requests = mr.user_requests('ChapFOIA')
 
 for req in my_requests:
     communications = req.communications
     for comm in communications:
         comm_files = comm.download_files()
-        for f in comm_files:
-            
+        for filedata, filename in comm_files:
+            fh = open('/tmp/%s' % filename, 'wb')
+            fh.write(filedata)
+            fh.close()
