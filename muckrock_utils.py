@@ -1,7 +1,9 @@
 #!/usr/bin/python3
 
 import requests
+import json
 
+from retrying import retry
 from os import environ
 from time import sleep
 
@@ -13,9 +15,43 @@ def state_abbrevs():
      'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN',
      'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY']
 
-def json_from_url(url):
+
+retry_opts = dict(wait_exponential_multiplier=1000, 
+                  wait_exponential_max=10000, 
+                  stop_max_attempt_number=3)
+#@retry(**retry_opts)
+def get_raw_email(num):
     headers = get_headers()
+    url = "https://www.muckrock.com/foi/raw_email/%s/" % num
     resp = requests.get(url, headers=headers)
+
+    return resp
+
+#    try:
+    
+#    except:
+#        return None
+
+def raw_emails(start_num=1, end_num=550000):
+    for c in range(start_num, end_num):
+        yield resp.json()
+
+def json_from_url(url, data={}):
+    print(url)
+    headers = get_headers()
+
+    data = json.dumps(data)
+
+   
+    while True: 
+        try:
+            resp = requests.get(url, headers=headers, data=data)
+            break
+        except:
+            print("Sleeping for 20 seconds...")
+            sleep(20)
+            resp = requests.get(url, headers=headers, data=data)
+            break
 
     status = resp.status_code
     if status != 200:
@@ -23,15 +59,16 @@ def json_from_url(url):
         sleep(1)
         return None
 
-    try:
-        resp_json = resp.json()
-    except:
-        print("Failed to parse json from %s" % url)
-        resp_json = []
+    resp_json = resp.json()
+    next_page = resp_json['next']
 
     sleep(1)
 
-    return resp_json
+    #recursively grabs all pages
+    if next_page:
+        resp_json['results'] += json_from_url(next_page)
+
+    return resp_json['results']
 
 def token_from_file(filepath=None):
     if not filepath:

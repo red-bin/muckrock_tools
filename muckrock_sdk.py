@@ -21,6 +21,8 @@ class Jurisdiction():
             self.fee_rate = fee_rate
             self.success_rate = success_rate
 
+            self.agencies = None
+
 class Agency():
     def __init__(self, id, name, slug, status, stale, exempt, types, 
                  requires_proxy,  jurisdiction, location,  website, 
@@ -81,6 +83,7 @@ class Communication():
 
             yield (resp.content, filename)
 
+#TODO: declunkify this
 class Request():
     def __init__(self, id, title, slug, status, embargo, 
                  permanent_embargo, user, username, jurisdiction, 
@@ -114,6 +117,13 @@ class Request():
         self.absolute_url = absolute_url
 
         self.communications = self.create_communications(communications)
+        self.raw_email = self.get_raw_email()
+
+    def get_raw_email(self):
+        url = 'https://www.muckrock.com/foi/raw_email/%s/' % self.id
+        resp = get(url)
+
+        return resp.json()
 
     def create_communications(self, comms):
         ret_comms = []
@@ -145,7 +155,7 @@ class Muckrock():
         url = "%s/?level=s" % base_url 
 
         resp = mr_utils.json_from_url(url)
-        self.states = resp['results']
+        self.states = resp
 
         jurisdictions = [ self.juris_by_id(s) for s in self.states ]
        
@@ -183,6 +193,34 @@ class Muckrock():
 
         return ret_agency
 
+    def is_cached(self, agency_id):
+        for agency in self.agencies:
+            if agency.id == agency_id:
+                return True
+
+        return False
+
+    def agency_search(self, name='', status='', juris_id='',
+                      types_name='', requires_proxy=''):
+        base_url = 'https://www.muckrock.com/api_v1/agency'
+        url_format = '%s/?name=%s&status=%s&jurisdiction=%s&types=%s'
+        url = url_format % (base_url, name, status, juris_id, types_name)
+
+        results = mr_utils.json_from_url(url)
+
+        ret = []
+        for agency in results:
+            agency_id = agency['id']
+            if not self.is_cached(agency_id):
+                agency_obj = Agency(**agency)
+                self.agencies.append(agency)
+            else:
+                agency_obj = self.agency_by_id(agency_id)
+
+            ret.append(agency_obj)
+
+        return ret
+
     def request_exists(self, request_id):
         for cached_request in self.requests:
             if cached_request.id == request_id:
@@ -190,13 +228,26 @@ class Muckrock():
 
         return None
 
+    #Takes a long time and is NOT optimized.
+    def all_requests(self):
+        url = 'https://www.muckrock.com/api_v1/foia?page_size=10000'
+        ret = mr_utils.json_from_url(url)
+
+        return ret
+
+    def all_communications(self):
+        url = 'https://www.muckrock.com/api_v1/communication?page_size=10000'
+        ret = mr_utils.json_from_url(url)
+
+        return ret
+
     def user_requests(self, username):
         base_url = 'https://www.muckrock.com/api_v1/foia'
         url = "%s?user=%s" % (base_url, username)
     
         requests_ret = []
 
-        results = mr_utils.json_from_url(url)['results']
+        results = mr_utils.json_from_url(url)
         for request_json in results:
             request_id = request_json['id']
             cached_request = self.request_exists(request_id)
