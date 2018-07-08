@@ -34,7 +34,6 @@ def get_raw_emails():
 
     while True:
         lists_url = d.current_url
-        sleep(1)
         list_top = d.find_element_by_css_selector("html body.touch div.container div.content div.list.grid__row div.grid__column.three-quarters table.sortable.cardtable.stacktable.large-only tbody")
         link_elements = list_top.find_elements_by_class_name("bold") #request links
         request_urls = [link.get_attribute("href") for link in link_elements]
@@ -60,7 +59,6 @@ def get_raw_emails():
         next_page.click()
 
 emails = []
+
 for request_no, email_no, text in get_raw_emails():
     emails.append((request_no, email_no, text))
-    sleep(.5)
-
