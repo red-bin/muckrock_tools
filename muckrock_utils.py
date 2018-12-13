@@ -60,13 +60,16 @@ def json_from_url(url, data={}):
         return None
 
     resp_json = resp.json()
-    next_page = resp_json['next']
+    print(resp_json)
 
     sleep(1)
 
     #recursively grabs all pages
-    if next_page:
+    if resp_json.get('next'):
         resp_json['results'] += json_from_url(next_page)
+
+    if resp_json.get('slug'):
+        return resp_json
 
     return resp_json['results']
 
