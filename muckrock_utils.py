@@ -3,6 +3,7 @@
 import requests
 import json
 
+from getpass import getpass
 from retrying import retry
 from os import environ
 from time import sleep
@@ -19,6 +20,21 @@ def state_abbrevs():
 retry_opts = dict(wait_exponential_multiplier=1000, 
                   wait_exponential_max=10000, 
                   stop_max_attempt_number=3)
+
+def get_api_key():
+    try:
+        token = environ['MUCKROCK_TOKEN']
+    except KeyError:
+        user = input('Username: ')
+        pw = getpass()
+        response = requests.post('https://www.muckrock.com/api_v1/token-auth/', data={'username': user, 'password': pw})
+        if not response.raise_for_status():
+            data = response.json()
+            token = data['token']
+            environ['MUCKROCK_TOKEN'] = token
+
+    return token
+
 #@retry(**retry_opts)
 def get_raw_email(num):
     headers = get_headers()
@@ -86,7 +102,7 @@ def token_from_file(filepath=None):
 
 def muckrock_token(username=None, password=None):
     if not username or not password:
-        token = token_from_file()
+        token = token_from_file() #get_api_key()
 
     else:
         resp = get_api_key()

@@ -264,6 +264,13 @@ class Muckrock():
 
         return ret
 
+    def juris_exists(self, juris_id):
+        for cached_juris in self.jurisdictions:
+            if cached_juris.id == juris_id:
+                return cached_juris
+
+        return None
+
     def request_exists(self, request_id):
         for cached_request in self.requests:
             if cached_request.id == request_id:
@@ -273,7 +280,7 @@ class Muckrock():
 
     #Takes a long time and is NOT optimized.
     def all_requests(self):
-        url = 'https://www.muckrock.com/api_v1/foia?page_size=10000'
+        url = 'https://www.muckrock.com/api_v1/foia?page_size=100'
         ret = mr_utils.json_from_url(url)
 
         return ret
@@ -283,6 +290,17 @@ class Muckrock():
         ret = mr_utils.json_from_url(url)
 
         return ret
+
+    def all_jurisdictions(self):
+        url = 'https://www.muckrock.com/api_v1/jurisdiction?page_size=10000'
+        ret_jurisdictions = mr_utils.json_from_url(url)
+
+        for juris in ret_jurisdictions:
+            if not self.juris_exists(juris['id']):
+                juris_obj = Jurisdiction(**juris)
+                self.jurisdictions.append(juris_obj)
+
+        return self.jurisdictions
 
     def user_requests(self, username):
         base_url = 'https://www.muckrock.com/api_v1/foia'
