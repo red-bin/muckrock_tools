@@ -6,6 +6,59 @@ import json
 
 from shutil import copyfileobj
 
+states_map = {
+  'florida':34,
+  'pennsylvania':126,
+  'tennessee':155,
+  'delaware':236,
+  'maryland':154,
+  'virginia':128,
+  'texas':109,
+  'ohio':116,
+  'arkansas':114,
+  'michigan':117,
+  'illinois':168,
+  'missouri':299,
+  'alabama':159,
+  'north carolina':153,
+  'indiana':152,
+  'louisiana':233,
+  'montana':157,
+  'connecticut':53,
+  'alaska':235,
+  'arizona':78,
+  'california':52,
+  'hawaii':247,
+  'idaho':228,
+  'iowa':246,
+  'maine':13,
+  'massachusetts':1,
+  'nebraska':300,
+  'new hampshire':81,
+  'new jersey':229,
+  'new york':16,
+  'north dakota':232,
+  'colorado':127,
+  'georgia':230,
+  'kansas':111,
+  'kentucky':147,
+  'minnesota':156,
+  'mississippi':231,
+  'nevada':301,
+  'new mexico':227,
+  'oklahoma':248,
+  'oregon':158,
+  'rhode island':82,
+  'south carolina':302,
+  'south dakota':303,
+  'utah':234,
+  'vermont':80,
+  'washington':54,
+  'west virginia':304,
+  'wisconsin':146,
+  'wyoming':305,
+}
+
 class Jurisdiction():
     def __init__(self, id, name, slug, abbrev, 
                  level, parent, public_notes, absolute_url,
@@ -21,15 +74,17 @@ class Jurisdiction():
             self.average_response_time = average_response_time
             self.fee_rate = fee_rate
             self.success_rate = success_rate
+            self.state = self.absolute_url.split('/')[-3]
 
-            self.agencies = None
+            self.agencies = []
 
 class Agency():
     def __init__(self, id, name, slug, status, exempt, types, 
-                 requires_proxy,  jurisdiction, location,  website, 
-                 twitter, twitter_handles, parent, appeal_agency, 
-                 url, foia_logs, foia_guide, public_notes, absolute_url, 
-                 average_response_time, fee_rate, success_rate):
+                 requires_proxy,  jurisdiction, location=None,  website=None, 
+                 twitter=None, twitter_handles=None, parent=None, appeal_agency=None, 
+                 url=None, foia_logs=None, foia_guide=None, public_notes=None, 
+                 absolute_url=None,  average_response_time=None, fee_rate=None, 
+                 success_rate=None):
 
         self.id = id
         self.name = name
@@ -82,7 +137,7 @@ class Request():
                  agency, datetime_submitted, 
                  date_due, days_until_due, date_followup, datetime_done, 
                  date_embargo, tracking_id, price, disable_autofollowups, 
-                 tags, notes, communications, absolute_url):
+                 tags, communications, absolute_url, notes=None):
 
         self.id = id
         self.title = title
@@ -103,8 +158,8 @@ class Request():
         self.price = price
         self.disable_autofollowups = disable_autofollowups
         self.tags = tags
-        self.notes = notes
         self.absolute_url = absolute_url
+        self.notes = notes
 
         self.communications = self.create_communications(communications)
         #self.raw_email = self.get_raw_email()
@@ -127,6 +182,9 @@ class Request():
         doccloud_id = doc_id.split('-')[0]
         doccloud_file = '-'.join(doc_id.split('-')[1:])
 
+        if not doccloud_id or not doccloud_file:
+            return None
+
         doccloud_url = "https://assets.documentcloud.org/documents/{}/{}.txt"
         doccloud_url = doccloud_url.format(doccloud_id, doccloud_file)
 
@@ -148,8 +206,9 @@ class Request():
         makedirs(savedir, exist_ok=True)
 
         for comm in self.communications:
+            print("Downloading for comm {}".format(comm))
             for comm_file in comm.files:
-                response = requests.get(comm_file['ffile'], stream=True)
+                response = requests.get(comm_file['ffile'], stream=True, timeout=5)
                 filename = comm_file['ffile'].split('/')[-1]
 
                 savepath = '{}/{}'.format(savedir, filename)
@@ -190,6 +249,19 @@ class Muckrock():
        
         return jurisdictions
 
+    def juris_children(self, juris_id):
+        base_url = 'https://www.muckrock.com/api_v1/jurisdiction'
+        url = '{}/?parent={}'.format(base_url, juris_id)
+
+        results = mr_utils.json_from_url(url)
+
+        ret_jurisdictions = []
+        for juris_data in results:
+            juris = Jurisdiction(**juris_data)
+            ret_jurisdictions.append(juris)
+         
+        return ret_jurisdictions
+
     def request_by_id(self, request_id):
         cached_request = self.request_exists(request_id)
         if cached_request:
@@ -213,7 +285,6 @@ class Muckrock():
             return False
 
     def juris_by_id(self, juris_id):
-        print('juris: %s' % juris_id)
         for juris in self.jurisdictions:
             if juris.id == juris_id:
                 return juris
@@ -225,7 +296,6 @@ class Muckrock():
         return ret_juris
 
     def agency_by_id(self, agency_id):
-        print('agency: %s' % agency_id)
         for agency in self.agencies:
             if agency.id == agency_id:
                 return agency
@@ -236,9 +306,18 @@ class Muckrock():
 
         return ret_agency
 
-    def is_cached(self, agency_id):
+    def is_agency_cached(self, agency_id):
         for agency in self.agencies:
             if agency.id == agency_id:
+                return True
+
+        print('hmmmm')
+
+        return False
+
+    def is_juris_cached(self, juris_id):
+        for juris in self.jurisdictions:
+            if juris.id == juris_id:
                 return True
 
         return False
@@ -254,15 +333,50 @@ class Muckrock():
         ret = []
         for agency in results:
             agency_id = agency['id']
-            if not self.is_cached(agency_id):
+            if not self.is_agency_cached(agency_id):
                 agency_obj = Agency(**agency)
-                self.agencies.append(agency)
+                self.agencies.append(agency_obj)
             else:
                 agency_obj = self.agency_by_id(agency_id)
 
             ret.append(agency_obj)
 
         return ret
+
+    def juris_search(self, name='', abbrev='', level='', parent='', state_name=None, fetch_agencies=True):
+        if state_name and not parent:
+            state_name = state_name.lower()
+            if state_name in states_map:
+                parent = states_map[state_name]
+
+        base_url = 'https://www.muckrock.com/api_v1/jurisdiction'
+        url_format = '{}/?name={}&abbrev={}&level={}&parent={}'
+        url = url_format.format(base_url, name, abbrev, level, parent)
+       
+        results = mr_utils.json_from_url(url)
+
+        jurisdictions = []
+        for juris in results:
+            juris_id = juris['id']
+            if not self.is_juris_cached(juris_id):
+                juris_obj = Jurisdiction(**juris)
+                self.jurisdictions.append(juris_obj)
+            else:
+                juris_obj = self.juris_by_id(juris_id)
+
+            jurisdictions.append(juris_obj)
+
+        if fetch_agencies:
+            for juris in jurisdictions:
+                juris_agencies = self.agencies_by_juris_id(juris.id)
+                for agency in juris_agencies:
+                    if agency not in juris.agencies:
+                        juris.agencies.append(agency)
+
+        return jurisdictions 
+
+    def agencies_by_juris_id(self, juris_id):
+        return self.agency_search(juris_id=juris_id)
 
     def juris_exists(self, juris_id):
         for cached_juris in self.jurisdictions:
@@ -327,7 +441,6 @@ class Muckrock():
         agency = self.agency_by_id(agency_id)
         jurisdiction = self.juris_by_id(juris_id)
 
-
         data = {'title': subject, 
                 'full_text': body,
                 'document_request': body,
@@ -353,3 +466,33 @@ class Muckrock():
         print()
         resp = requests.post(base_url, headers=headers, data=json_data)
         return resp
+
+    def send_batch_request(self, subject, body, agencies, prompt=True):
+        """agency_mappings must be in the format of: ([juris_id, agency_id], [juris_id, agency_id])"""
+
+        print("Sending the following request:")
+        print("======Subject======")
+        print()
+        print("======Body======")
+        print(body)
+        print()
+        print("======Agencies======")
+        for agency in agencies:
+            print(agency.name)
+       
+        if prompt:
+            while True:
+                yn = input('Continue? (Y/N)\n')
+                if yn in ['n','N']:
+                    print('Exiting!')
+                    exit(1)
+
+                elif yn in ['Y', 'y']:
+                    break
+
+                else:
+                    print("You must choose either Y or N")
+
+
+        for agency in agencies
+            self.send_request(subject, body, a.jurisdiction, a.id)

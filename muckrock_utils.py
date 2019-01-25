@@ -35,7 +35,6 @@ def get_api_key():
 
     return token
 
-#@retry(**retry_opts)
 def get_raw_email(num):
     headers = get_headers()
     url = "https://www.muckrock.com/foi/raw_email/%s/" % num
@@ -43,22 +42,15 @@ def get_raw_email(num):
 
     return resp
 
-#    try:
-    
-#    except:
-#        return None
-
 def raw_emails(start_num=1, end_num=550000):
     for c in range(start_num, end_num):
         yield resp.json()
 
-def json_from_url(url, data={}):
-    print(url)
+def json_from_url(url, data={}, page_size=2000):
     headers = get_headers()
-
+    data['page_size'] = page_size
     data = json.dumps(data)
 
-   
     while True: 
         try:
             resp = requests.get(url, headers=headers, data=data)
@@ -76,13 +68,10 @@ def json_from_url(url, data={}):
         return None
 
     resp_json = resp.json()
-    print(resp_json)
-
-    sleep(1)
 
     #recursively grabs all pages
     if resp_json.get('next'):
-        resp_json['results'] += json_from_url(next_page)
+        resp_json['results'] += json_from_url(resp_json.get('next'))
 
     if resp_json.get('slug'):
         return resp_json
@@ -110,13 +99,6 @@ def muckrock_token(username=None, password=None):
         token = auth_str.split()[1]
 
     return token
-
-def user_requests(username):
-    base_url = 'https://www.muckrock.com/api_v1/foia'
-    url = "%s?user=%s" % (base_url, username)
-
-    ret = json_from_url(url)['results']
-    return ret
 
 def request_juris(juris_id):
     endpoint_base = 'https://www.muckrock.com/api_v1/jurisdiction'
