@@ -19,3 +19,13 @@ SDK for sending send requests through muckrock.com.
   mr = Muckrock() 
   r = mr.request_by_id(62870)  
   r.download_files(savedir='/tmp/')
+
+## Submit a request to all agencies in a jurisdiction
+```python
+import muckrock_sdk
+
+mr = muckrock_sdk.Muckrock()
+chicago_agencies = mr.juris_search(state_name='Illinois', name='Chicago')[0]
+for agency in chicago_agencies:
+    send_request(subject='give me', body='those records', juris_id=agency.jurisdiction, agency_id=agency.id)
+```
