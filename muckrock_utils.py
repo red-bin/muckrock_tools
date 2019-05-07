@@ -47,9 +47,11 @@ def raw_emails(start_num=1, end_num=550000):
         yield resp.json()
 
 def json_from_url(url, data={}, page_size=2000):
+    sleep(1)
     headers = get_headers()
-    data['page_size'] = page_size
     data = json.dumps(data)
+
+    print(url)
 
     while True: 
         try:
@@ -64,7 +66,6 @@ def json_from_url(url, data={}, page_size=2000):
     status = resp.status_code
     if status != 200:
         print("Request to %s failed with %s" % (url, status))
-        sleep(1)
         return None
 
     resp_json = resp.json()
