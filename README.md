@@ -4,8 +4,7 @@ SDK for sending send requests through muckrock.com.
 ```python
   import muckrock_sdk as mr_sdk
   mr = mr_sdk.Muckrock()
-  mr.send_request(subject="ur warez", body="are mine", 
-    juris_id=1234, agency_id=5678)
+  mr.send_request(subject="ur warez", body="are mine", juris_id=1234, agency_id=5678)
 ```
 
 ## Download Files from Request
